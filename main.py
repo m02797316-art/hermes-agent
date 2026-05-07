@@ -2,6 +2,8 @@ import os
 import logging
 import json
 import datetime
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 from groq import Groq
@@ -9,11 +11,23 @@ from duckduckgo_search import DDGS
 
 logging.basicConfig(level=logging.INFO)
 
-GROQ_API_KEY = "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"
-TELEGRAM_TOKEN = "7959130159:AAEj2p2EpDul39wYBAxIgmJY0JWjNm8KEhw"
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 MEMORY_FILE = "memory.json"
 
 client = Groq(api_key=GROQ_API_KEY)
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"HERMES is alive")
+    def log_message(self, format, *args):
+        pass
+
+def run_health_server():
+    server = HTTPServer(("0.0.0.0", 10000), HealthHandler)
+    server.serve_forever()
 
 def load_memory():
     if os.path.exists(MEMORY_FILE):
@@ -89,6 +103,7 @@ Lerne aus jeder Unterhaltung und werde besser."""
     await update.message.reply_text(reply)
 
 def main():
+    threading.Thread(target=run_health_server, daemon=True).start()
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling()
